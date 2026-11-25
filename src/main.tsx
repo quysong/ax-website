@@ -1,11 +1,23 @@
 import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import App from './App';
 import { GlobalStyle } from './styles';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root');
+
+if (!root) {
+  throw new Error('Missing root element');
+}
+
+const app = (
   <React.StrictMode>
     <GlobalStyle />
     <App />
-  </React.StrictMode>,
+  </React.StrictMode>
 );
+
+if (root.hasChildNodes()) {
+  hydrateRoot(root, app);
+} else {
+  createRoot(root).render(app);
+}

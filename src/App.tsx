@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import styled from "styled-components";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { styled } from "styled-components";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -12,16 +11,20 @@ import {
   Send,
 } from "lucide-react";
 const WEDDING_DATE = new Date("2027-03-14T17:30:00+07:00");
-const RSVP_ENDPOINT = "/api/rsvp";
+const RSVP_ENDPOINT = import.meta.env.VITE_RSVP_ENDPOINT;
 const COUNT_LABELS: Record<string, string> = {
   days: "NGÀY",
   hours: "GIỜ",
   minutes: "PHÚT",
   seconds: "GIÂY",
 };
-const Page = styled.main`
+const Page = styled.main<{ $locked: boolean }>`
   overflow: hidden;
   background: #f8eee8;
+  height: ${({ $locked }) => ($locked ? "100vh" : "auto")};
+  @supports (height: 100svh) {
+    height: ${({ $locked }) => ($locked ? "100svh" : "auto")};
+  }
 `;
 const Eyebrow = styled.p`
   font-size: 10px;
@@ -98,8 +101,14 @@ function Countdown() {
       seconds: Math.floor((diff % 60000) / 1000),
     };
   };
-  const [time, setTime] = useState(getTime);
+  const [time, setTime] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  });
   useEffect(() => {
+    setTime(getTime());
     const timer = window.setInterval(() => setTime(getTime()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -119,10 +128,13 @@ function Envelope({ onOpen }: { onOpen: () => void }) {
   const open = () => {
     if (opening) return;
     setOpening(true);
-    window.setTimeout(onOpen, 1150);
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 0
+      : 1150;
+    window.setTimeout(onOpen, delay);
   };
   return (
-    <Intro>
+    <Intro className={opening ? "wedding-envelope opening" : "wedding-envelope"}>
       <IntroGrain />
       <IntroTop>
         <Eyebrow>THE WEDDING INVITATION · 2027</Eyebrow>
@@ -157,20 +169,12 @@ function Envelope({ onOpen }: { onOpen: () => void }) {
           >
             A <Heart size={15} fill="currentColor" /> X
           </Wax>
-          <motion.span
-            className="sparkle s1"
-            animate={{ y: [0, -8, 0], rotate: [0, 12, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          >
+          <span className="sparkle s1">
             ✦
-          </motion.span>
-          <motion.span
-            className="sparkle s2"
-            animate={{ y: [0, 7, 0], rotate: [0, -10, 0] }}
-            transition={{ duration: 2.5, repeat: Infinity }}
-          >
+          </span>
+          <span className="sparkle s2">
             ✳
-          </motion.span>
+          </span>
         </EnvelopeWrap>
         <p className="tap">CHẠM VÀO CON TEM ĐỂ MỞ THIỆP</p>
         <div className="intro-bottom">
@@ -193,24 +197,27 @@ function RSVP() {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("loading");
+    if (!RSVP_ENDPOINT) {
+      setStatus("error");
+      return;
+    }
     const payload = {
       name,
       attendance,
-      guests: Number(guests),
+      guests: attendance === "yes" ? Number(guests) : 0,
       message,
       submittedAt: new Date().toISOString(),
     };
     try {
       const response = await fetch(RSVP_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
       });
-      const result = (await response.json()) as {
-        ok?: boolean;
-      };
-      if (!response.ok || result.ok !== true)
+      if (response.type !== "opaque" && !response.ok) {
         throw new Error("RSVP submission failed");
+      }
       setStatus("success");
     } catch {
       setStatus("error");
@@ -235,7 +242,7 @@ function RSVP() {
         <Success>
           <Check size={30} />
           <b>Cảm ơn bạn thật nhiều!</b>
-          <span>Thông tin xác nhận đã được ghi nhận.</span>
+          <span>Xác nhận của bạn đã được gửi đi.</span>
         </Success>
       ) : (
         <form onSubmit={submit}>
@@ -352,41 +359,29 @@ const Sticker = styled.div`
 `;
 export default function App() {
   const [opened, setOpened] = useState(false);
-  const dateText = useMemo(
-    () =>
-      new Intl.DateTimeFormat("vi-VN", {
-        weekday: "long",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(WEDDING_DATE),
-    [],
-  );
+  const contentRef = useRef<HTMLDivElement>(null);
+  const dateText = "Chủ Nhật, 14 tháng 03 năm 2027";
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    if (opened) {
+      content.removeAttribute("inert");
+    } else {
+      content.setAttribute("inert", "");
+    }
+  }, [opened]);
   return (
-    <Page>
-      <AnimatePresence>
-        {!opened && (
-          <motion.div
-            key="intro"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.65 }}
-          >
-            <Envelope
-              onOpen={() => {
-                setOpened(true);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {opened && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-        >
+    <Page $locked={!opened}>
+      {!opened && (
+        <Envelope
+          onOpen={() => {
+            setOpened(true);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      )}
+      <div ref={contentRef}>
           <Nav>
             <a href="#top" className="brand">
               A <Heart size={13} fill="currentColor" /> X
@@ -622,12 +617,15 @@ export default function App() {
               BACK TO TOP ↑
             </button>
           </Footer>
-        </motion.div>
-      )}
+      </div>
     </Page>
   );
 }
 const Intro = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  min-height: 100vh;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -640,6 +638,16 @@ const Intro = styled.div`
     #f3e5df 100%
   );
   overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 650ms ease,
+    transform 650ms ease;
+  &.opening {
+    opacity: 0;
+    transform: translateY(-20px);
+    pointer-events: none;
+  }
   .tiny-star {
     color: #c58f98;
     font-size: 22px;
@@ -671,10 +679,22 @@ const Intro = styled.div`
   .s1 {
     right: -26px;
     top: 5px;
+    animation: sparkle-one 3s ease-in-out infinite;
   }
   .s2 {
     left: -34px;
     bottom: 34px;
+    animation: sparkle-two 2.5s ease-in-out infinite;
+  }
+  @keyframes sparkle-one {
+    50% {
+      transform: translateY(-8px) rotate(12deg);
+    }
+  }
+  @keyframes sparkle-two {
+    50% {
+      transform: translateY(7px) rotate(-10deg);
+    }
   }
 `;
 const IntroGrain = styled.div`position:absolute;inset:0;pointer-events:none;opacity:.16;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");}`;
