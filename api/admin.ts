@@ -6,8 +6,8 @@ import {
   getImageBlobPrefix,
   getImageSlot,
   imageSlots,
-} from "../src/image-slots";
-import { getManagedImageUrls } from "../src/blob-images";
+} from "../src/image-slots.js";
+import { getManagedImageUrls } from "../src/blob-images.js";
 
 const responseHeaders = {
   "Cache-Control": "no-store, max-age=0",

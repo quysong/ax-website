@@ -1,5 +1,9 @@
 import { list } from "@vercel/blob";
-import { getImageBlobPrefix, imageSlots, type ImageSlotId } from "./image-slots";
+import {
+  getImageBlobPrefix,
+  imageSlots,
+  type ImageSlotId,
+} from "./image-slots.js";
 
 export async function getManagedImageUrls(): Promise<
   Partial<Record<ImageSlotId, string>>

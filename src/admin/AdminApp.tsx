@@ -254,8 +254,14 @@ function AdminApp() {
   async function readResponse(response: Response): Promise<AdminResponse> {
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("application/json")) {
+      const isLocal = ["localhost", "127.0.0.1", "::1"].includes(
+        window.location.hostname,
+      );
+      const guidance = isLocal
+        ? "Ở local, hãy chạy `npx vercel dev`."
+        : "Trên Vercel, hãy kiểm tra Runtime Logs của function `/api/admin`.";
       throw new Error(
-        "API quản trị chưa chạy. Khi làm local, hãy dùng `npx vercel dev` thay vì `npm run dev`.",
+        `API quản trị trả phản hồi không phải JSON (HTTP ${response.status}). ${guidance}`,
       );
     }
 

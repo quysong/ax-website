@@ -1,4 +1,4 @@
-import { getManagedImageUrls } from "../src/blob-images";
+import { getManagedImageUrls } from "../src/blob-images.js";
 
 export async function GET(): Promise<Response> {
   try {
