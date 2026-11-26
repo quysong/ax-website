@@ -7,7 +7,8 @@ Các việc cần tiếp tục ở phiên làm việc sau:
 3. **Trang quản trị ảnh và Vercel Blob:**
    - Quản lý 6 vị trí ảnh tại `/admin`; upload trực tiếp lên Blob qua token giới hạn do Vercel Function cấp sau khi xác thực mật khẩu admin.
    - Ảnh được nén thành WebP phía trình duyệt; website lấy URL mới nhất từ Blob qua endpoint công khai đã cache.
-   - Cần tạo public Blob store, kết nối với project và cấu hình `BLOB_READ_WRITE_TOKEN` cùng `ADMIN_PASSWORD` trong Vercel trước khi dùng production.
+   - Blob store đã tạo và biến môi trường local đã cấu hình; trước khi dùng production, xác minh store là public và project Vercel có `BLOB_READ_WRITE_TOKEN` cùng `ADMIN_PASSWORD`.
+   - Các import ESM của API vừa được sửa để thêm đuôi `.js`; cần xác nhận deployment mới không còn `FUNCTION_INVOCATION_FAILED`.
 
 ## Trạng thái hiện tại
 
@@ -37,3 +38,32 @@ Trang hiện có section `#gallery` với 3 ảnh tĩnh (`gallery-1` đến `gal
 - Xem được trên desktop và mobile; slideshow điều khiển được bằng chuột, chạm và bàn phím.
 - Tôn trọng cài đặt giảm chuyển động, không gây tràn ngang hoặc nhảy bố cục.
 - Chạy `npm run build` để xác nhận vẫn prerender/SSG thành công.
+
+## Kế hoạch phiên tiếp theo — RSVP, lời chúc và nhạc nền
+
+### 1. Kiểm thử RSVP với Google Sheets
+
+- Gửi một vài RSVP thử có tên/nội dung dễ nhận biết là dữ liệu kiểm thử; xác nhận các dòng thực sự xuất hiện trong Google Sheet.
+- Kiểm tra cả trường hợp tham dự và không tham dự, cùng lời nhắn của khách.
+- Không xóa các dòng kiểm thử khỏi Sheet nếu chưa thống nhất cách dọn dữ liệu.
+
+### 2. Hiển thị lời chúc của khách mời
+
+- Thiết kế một section lời chúc phù hợp với phong cách thiệp sau khi xác nhận luồng ghi RSVP hoạt động.
+- Kiểm tra Apps Script hiện tại có hỗ trợ đọc danh sách lời chúc không; nếu chưa, thiết kế endpoint chỉ trả dữ liệu được phép công khai.
+- Cân nhắc consent/duyệt trước khi công khai tên và lời nhắn của khách.
+
+### 3. Quản lý và phát nhạc nền
+
+- Mở rộng `/admin` để quản lý nhiều track: upload audio lên Blob, nhập tên bài, bật/tắt từng bài trong playlist.
+- Chỉ tải các track được bật; đặt giới hạn định dạng/kích thước và lưu ý băng thông Blob.
+- Tạo nút nhạc nổi có play/pause và mở playlist; thiết kế responsive, cho phép khách chủ động tắt nhạc.
+- Trình duyệt có thể chặn autoplay có âm thanh trước tương tác của khách; cần xử lý graceful fallback yêu cầu chạm/bấm để phát.
+- Các bài “Hơn Cả Yêu”, “Ánh nắng của anh” và “A Thousand Years” là ví dụ mong muốn; chỉ dùng file do người dùng cung cấp có quyền sử dụng hoặc file đã được cấp phép.
+
+### Thứ tự đề xuất
+
+1. Xác nhận Blob API hoạt động trên deployment mới.
+2. Test RSVP end-to-end và xác nhận dữ liệu trên Sheet.
+3. Chốt consent/duyệt cho lời chúc, rồi làm demo section.
+4. Làm demo quản lý playlist và player; sau đó tiếp tục gallery slideshow và hoạt cảnh chào đã ghi ở trên.
