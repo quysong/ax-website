@@ -2,7 +2,7 @@ import { createGlobalStyle } from 'styled-components';
 
 export const GlobalStyle = createGlobalStyle`
   :root {
-    font-family: 'Be Vietnam Pro', sans-serif;
+    font-family: 'Noto Sans', sans-serif;
     color: #65514d;
     background: #f8eee8;
     font-synthesis: none;

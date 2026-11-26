@@ -10,6 +10,7 @@ import {
   MapPin,
   Send,
 } from "lucide-react";
+import { imageSlots, type ImageSlotId } from "./image-slots";
 const WEDDING_DATE = new Date("2027-03-14T17:30:00+07:00");
 const RSVP_ENDPOINT = import.meta.env.VITE_RSVP_ENDPOINT;
 const COUNT_LABELS: Record<string, string> = {
@@ -27,8 +28,8 @@ const Page = styled.main<{ $locked: boolean }>`
   }
 `;
 const Eyebrow = styled.p`
-  font-size: 10px;
-  letter-spacing: 0.24em;
+  font-size: 13px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #ad8582;
   font-weight: 600;
@@ -63,7 +64,7 @@ const Button = styled.button`
   padding: 14px 23px;
   background: #bd8991;
   color: white;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   display: inline-flex;
@@ -91,6 +92,38 @@ const OutlineButton = styled(Button)`
     color: #795f59;
   }
 `;
+function WeddingPhoto({
+  slotId,
+  src,
+  alt,
+  eager = false,
+}: {
+  slotId: ImageSlotId;
+  src?: string;
+  alt: string;
+  eager?: boolean;
+}) {
+  const slot = imageSlots.find((imageSlot) => imageSlot.id === slotId);
+  if (!src || !slot) return null;
+
+  return (
+    <img
+      src={src}
+      width={slot.width}
+      height={slot.height}
+      loading={eager ? "eager" : "lazy"}
+      decoding="async"
+      alt={alt}
+      onLoad={(event) =>
+        event.currentTarget.parentElement?.classList.add("has-image")
+      }
+      onError={(event) => {
+        event.currentTarget.style.display = "none";
+        event.currentTarget.parentElement?.classList.remove("has-image");
+      }}
+    />
+  );
+}
 function Countdown() {
   const getTime = () => {
     const diff = Math.max(0, WEDDING_DATE.getTime() - Date.now());
@@ -321,10 +354,28 @@ const StoryPhoto = styled.div`
   small {
     display: block;
     text-align: center;
-    font-size: 8px;
-    letter-spacing: 0.16em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     margin-top: 10px;
     color: #ad8582;
+  }
+  .scene-two,
+  .scene-three {
+    position: relative;
+    overflow: hidden;
+  }
+  .scene-two > img,
+  .scene-three > img {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .scene-two.has-image > span,
+  .scene-three.has-image > span {
+    visibility: hidden;
   }
   .scene-two,
   .scene-three {
@@ -340,6 +391,24 @@ const StoryPhoto = styled.div`
   }
   .scene-three {
     background: linear-gradient(140deg, #c9d3c1, #8e9d8d);
+  }
+  .scene-two,
+  .scene-three {
+    position: relative;
+    overflow: hidden;
+  }
+  .scene-two > img,
+  .scene-three > img {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .scene-two.has-image > span,
+  .scene-three.has-image > span {
+    visibility: hidden;
   }
   @media (max-width: 720px) {
     .scene-two,
@@ -359,8 +428,34 @@ const Sticker = styled.div`
 `;
 export default function App() {
   const [opened, setOpened] = useState(false);
+  const [imageUrls, setImageUrls] = useState<
+    Partial<Record<ImageSlotId, string>>
+  >({});
   const contentRef = useRef<HTMLDivElement>(null);
   const dateText = "Chủ Nhật, 14 tháng 03 năm 2027";
+  useEffect(() => {
+    let active = true;
+
+    async function loadImages() {
+      try {
+        const response = await fetch("/api/images");
+        if (!response.ok) {
+          throw new Error(`Image list request failed (${response.status}).`);
+        }
+        const result = (await response.json()) as {
+          images?: Partial<Record<ImageSlotId, string>>;
+        };
+        if (active) setImageUrls(result.images ?? {});
+      } catch (error) {
+        console.error("Could not load wedding images.", error);
+      }
+    }
+
+    void loadImages();
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     const content = contentRef.current;
     if (!content) return;
@@ -422,6 +517,12 @@ export default function App() {
                     GOES HERE
                   </span>
                   <small>ANALOG MEMORIES · 01</small>
+                  <WeddingPhoto
+                    slotId="hero"
+                    src={imageUrls.hero}
+                    alt="Ảnh cưới của Anh và Xinh"
+                    eager
+                  />
                 </div>
                 <div className="photo-caption">the beginning of forever</div>
               </Photo>
@@ -464,9 +565,16 @@ export default function App() {
             <StoryGrid>
               <StoryPhoto className="story-a">
                 <div className="scene-two">
-                  PHOTO
-                  <br />
-                  01
+                  <span>
+                    PHOTO
+                    <br />
+                    01
+                  </span>
+                  <WeddingPhoto
+                    slotId="story-1"
+                    src={imageUrls["story-1"]}
+                    alt="Khoảnh khắc đầu tiên trong chuyện tình của Anh và Xinh"
+                  />
                 </div>
                 <small>THE DAY WE MET</small>
               </StoryPhoto>
@@ -487,9 +595,16 @@ export default function App() {
               </StoryText>
               <StoryPhoto className="story-b">
                 <div className="scene-three">
-                  PHOTO
-                  <br />
-                  02
+                  <span>
+                    PHOTO
+                    <br />
+                    02
+                  </span>
+                  <WeddingPhoto
+                    slotId="story-2"
+                    src={imageUrls["story-2"]}
+                    alt="Kỷ niệm của Anh và Xinh"
+                  />
                 </div>
                 <small>OUR LITTLE WORLD</small>
               </StoryPhoto>
@@ -564,25 +679,46 @@ export default function App() {
             <Gallery>
               <Photo className="g1">
                 <div className="scene-four">
-                  YOUR
-                  <br />
-                  PHOTO
+                  <span>
+                    YOUR
+                    <br />
+                    PHOTO
+                  </span>
+                  <WeddingPhoto
+                    slotId="gallery-1"
+                    src={imageUrls["gallery-1"]}
+                    alt="Ảnh cưới của Anh và Xinh trong bộ sưu tập"
+                  />
                 </div>
                 <div className="photo-caption">a day to remember</div>
               </Photo>
               <Photo className="g2">
                 <div className="scene-five">
-                  YOUR
-                  <br />
-                  PHOTO
+                  <span>
+                    YOUR
+                    <br />
+                    PHOTO
+                  </span>
+                  <WeddingPhoto
+                    slotId="gallery-2"
+                    src={imageUrls["gallery-2"]}
+                    alt="Ảnh cưới thứ hai trong bộ sưu tập"
+                  />
                 </div>
                 <div className="photo-caption">just the two of us</div>
               </Photo>
               <Photo className="g3">
                 <div className="scene-six">
-                  YOUR
-                  <br />
-                  PHOTO
+                  <span>
+                    YOUR
+                    <br />
+                    PHOTO
+                  </span>
+                  <WeddingPhoto
+                    slotId="gallery-3"
+                    src={imageUrls["gallery-3"]}
+                    alt="Ảnh cưới thứ ba trong bộ sưu tập"
+                  />
                 </div>
                 <div className="photo-caption">happily ever after</div>
               </Photo>
@@ -656,8 +792,8 @@ const Intro = styled.div`
     font-size: clamp(25px, 4vw, 36px);
   }
   .tap {
-    font-size: 9px;
-    letter-spacing: 0.2em;
+    font-size: 13px;
+    letter-spacing: 0.12em;
     color: #ad8582;
     margin-top: 36px;
   }
@@ -667,8 +803,8 @@ const Intro = styled.div`
     max-width: 360px;
     width: 100%;
     margin: 70px auto 0;
-    font-size: 9px;
-    letter-spacing: 0.14em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     color: #a88880;
   }
   .sparkle {
@@ -756,8 +892,8 @@ const Letter = styled.div`
   z-index: 1;
   box-shadow: 0 3px 8px #765b5710;
   span {
-    font-size: 8px;
-    letter-spacing: 0.25em;
+    font-size: 13px;
+    letter-spacing: 0.12em;
     color: #b58b88;
   }
   b {
@@ -772,8 +908,8 @@ const Letter = styled.div`
     font-weight: 400;
   }
   small {
-    font-size: 10px;
-    letter-spacing: 0.2em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     color: #ad8582;
   }
 `;
@@ -806,8 +942,8 @@ const Wax = styled.button`
   left: 50%;
   top: 53%;
   transform: translate(-50%, -50%);
-  width: 57px;
-  height: 57px;
+  width: 64px;
+  height: 64px;
   border: 0;
   border-radius: 50%;
   background: #b77d86;
@@ -817,7 +953,7 @@ const Wax = styled.button`
   justify-content: center;
   gap: 2px;
   font:
-    600 12px "Cormorant Garamond",
+    600 13px "Cormorant Garamond",
     serif;
   box-shadow: 0 3px 7px #765b5730;
 `;
@@ -847,8 +983,8 @@ const Nav = styled.nav`
     gap: 30px;
   }
   a {
-    font-size: 10px;
-    letter-spacing: 0.08em;
+    font-size: 13px;
+    letter-spacing: 0.04em;
     text-decoration: none;
     color: #806a63;
   }
@@ -861,7 +997,7 @@ const Nav = styled.nav`
     background: transparent;
     padding: 9px 13px;
     color: #806a63;
-    font-size: 10px;
+    font-size: 13px;
   }
   @media (max-width: 700px) {
     height: 60px;
@@ -913,7 +1049,7 @@ const Hero = styled.section`
   }
   .hero-desc {
     max-width: 340px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 2;
     color: #8e7770;
     margin: 26px 0 32px;
@@ -923,8 +1059,8 @@ const Hero = styled.section`
     gap: 10px;
     align-items: center;
     text-decoration: none;
-    font-size: 9px;
-    letter-spacing: 0.18em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     border-bottom: 1px solid #cda6a4;
     padding-bottom: 9px;
   }
@@ -973,7 +1109,7 @@ const Hero = styled.section`
   }
   .sticker-heart small {
     font:
-      12px "Caveat",
+      13px "Caveat",
       cursive;
     line-height: 1;
   }
@@ -982,15 +1118,15 @@ const Hero = styled.section`
     height: 95px;
     background: #dce6d6;
     color: #7b8270;
-    font-size: 9px;
-    letter-spacing: 0.1em;
+    font-size: 13px;
+    letter-spacing: 0.04em;
     left: 0;
     bottom: 65px;
     transform: rotate(-12deg);
     flex-direction: column;
   }
   .sticker-date b {
-    font-size: 11px;
+    font-size: 13px;
     margin-top: 4px;
   }
   @media (max-width: 760px) {
@@ -1057,20 +1193,40 @@ const Photo = styled.div`
     position: relative;
     overflow: hidden;
   }
+  .scene-one > img,
+  .scene-four > img,
+  .scene-five > img,
+  .scene-six > img {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .scene-one.has-image > span,
+  .scene-one.has-image > small,
+  .scene-four.has-image > span,
+  .scene-five.has-image > span,
+  .scene-six.has-image > span {
+    visibility: hidden;
+  }
   .scene-one:before,
   .scene-four:before,
   .scene-five:before,
   .scene-six:before {
     content: "";
     position: absolute;
+    z-index: 2;
     inset: 12px;
     border: 1px solid #ffffff80;
+    pointer-events: none;
   }
   .scene-one small {
     position: absolute;
     bottom: 24px;
     font:
-      8px "Be Vietnam Pro",
+      13px "Noto Sans",
       sans-serif;
     letter-spacing: 0.2em;
   }
@@ -1081,8 +1237,8 @@ const Marquee = styled.div`
   color: #71806e;
   padding: 13px 0;
   white-space: nowrap;
-  font-size: 9px;
-  letter-spacing: 0.22em;
+  font-size: 13px;
+  letter-spacing: 0.1em;
   & span {
     display: block;
     animation: marquee 32s linear infinite;
@@ -1098,7 +1254,7 @@ const Center = styled.div`
   max-width: 700px;
   margin: 0 auto;
   .section-lead {
-    font-size: 12px;
+    font-size: 13px;
     line-height: 2;
     color: #927c75;
     max-width: 490px;
@@ -1135,8 +1291,8 @@ const StoryGrid = styled.div`
   .story-b small {
     display: block;
     text-align: center;
-    font-size: 8px;
-    letter-spacing: 0.16em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     margin-top: 10px;
     color: #ad8582;
   }
@@ -1187,7 +1343,7 @@ const StoryText = styled.div`
     margin: 10px 0 15px;
   }
   p {
-    font-size: 11px;
+    font-size: 13px;
     line-height: 2.1;
     color: #927c75;
   }
@@ -1224,8 +1380,8 @@ const CountUnit = styled.div`
     color: #8e6d6a;
   }
   span {
-    font-size: 8px;
-    letter-spacing: 0.18em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
     color: #ad8582;
   }
 `;
@@ -1271,7 +1427,7 @@ const Detail = styled.div`
     margin: 7px 0;
   }
   span {
-    font-size: 9px;
+    font-size: 13px;
     color: #a18a81;
   }
   ${Eyebrow} {
@@ -1335,8 +1491,8 @@ const RSVPCard = styled.div`
     position: absolute;
     right: 22px;
     top: 18px;
-    width: 65px;
-    height: 65px;
+    width: 78px;
+    height: 78px;
     border: 1px dashed #c99da0;
     border-radius: 50%;
     display: flex;
@@ -1344,8 +1500,8 @@ const RSVPCard = styled.div`
     align-items: center;
     justify-content: center;
     color: #bd8991;
-    font-size: 7px;
-    letter-spacing: 0.1em;
+    font-size: 13px;
+    letter-spacing: 0.04em;
     transform: rotate(10deg);
   }
   h3 {
@@ -1356,7 +1512,7 @@ const RSVPCard = styled.div`
     margin: 5px 0 8px;
   }
   .sub {
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.9;
     color: #927c75;
     margin-bottom: 28px;
@@ -1367,8 +1523,8 @@ const RSVPCard = styled.div`
     gap: 17px;
   }
   label {
-    font-size: 10px;
-    letter-spacing: 0.06em;
+    font-size: 13px;
+    letter-spacing: 0.03em;
     color: #8d716b;
     display: flex;
     flex-direction: column;
@@ -1384,7 +1540,7 @@ const RSVPCard = styled.div`
     color: #765b57;
     border-radius: 2px;
     outline: none;
-    font-size: 11px;
+    font-size: 13px;
   }
   input:focus,
   textarea:focus,
@@ -1404,7 +1560,7 @@ const RSVPCard = styled.div`
     background: transparent;
     padding: 12px 7px;
     color: #927c75;
-    font-size: 10px;
+    font-size: 13px;
   }
   .choice button.active {
     border-color: #bd8991;
@@ -1412,11 +1568,11 @@ const RSVPCard = styled.div`
     color: #9d6e77;
   }
   .error {
-    font-size: 10px;
+    font-size: 13px;
     color: #b04e55;
   }
   .local-note {
-    font-size: 9px;
+    font-size: 13px;
     line-height: 1.6;
     color: #ad9890;
   }
@@ -1434,15 +1590,15 @@ const RSVPCard = styled.div`
       serif;
   }
   .success span {
-    font-size: 11px;
+    font-size: 13px;
   }
   @media (max-width: 520px) {
     padding: 48px 22px 30px;
     .rsvp-stamp {
-      width: 54px;
-      height: 54px;
-      right: 12px;
-      top: 12px;
+      width: 68px;
+      height: 68px;
+      right: 10px;
+      top: 10px;
     }
     h3 {
       font-size: 35px;
@@ -1478,8 +1634,8 @@ const Footer = styled.footer`
     letter-spacing: 0.2em;
   }
   small {
-    font-size: 8px;
-    letter-spacing: 0.2em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
   }
   button {
     display: block;
@@ -1489,7 +1645,7 @@ const Footer = styled.footer`
     background: none;
     padding: 0 0 7px;
     color: #846a66;
-    font-size: 9px;
-    letter-spacing: 0.15em;
+    font-size: 13px;
+    letter-spacing: 0.08em;
   }
 `;

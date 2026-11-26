@@ -24,9 +24,9 @@ npm run build
 npm run preview
 ```
 
-The build produces static HTML with the invitation and styled-components CSS already rendered, then hydrates it in the browser. The envelope is an overlay; the invitation content remains in the initial HTML. `npm run dev` uses client rendering while `npm run preview` serves the production prerendered output.
+The build produces static HTML with the invitation and styled-components CSS already rendered, then hydrates it in the browser. The envelope is an overlay; the invitation content remains in the initial HTML. `npm run dev` uses Vite's client-rendered dev server while `npm run preview` serves the production-prerendered site.
 
-Import this folder/repository into Vercel. Framework preset: Vite. Build command: `npm run build`; output directory: `dist`. This uses Vercel's static CDN and does not add a server runtime.
+Import this folder/repository into Vercel. Framework preset: Vite. Build command: `npm run build`; output directory: `dist`. The invitation is static on Vercel's CDN; the image-admin API is a small Node.js Vercel Function.
 
 ## RSVP integration
 
@@ -97,8 +97,38 @@ The endpoint receives:
 
 For production, configure the endpoint with appropriate validation and spam protection. Never put private API keys in `VITE_` variables.
 
+## Image management
+
+Create a **public Vercel Blob store** connected to this Vercel project. Enable **Add a read-write token env var to this connection**, and include Production, Preview, and Development environments as needed. Public access is intentional: the wedding invitation photos are delivered to every visitor by URL.
+
+Visit `/admin` to replace the six invitation image slots. Each slot shows a recommended pixel size and aspect ratio. Select an image or drag it onto its preview frame; valid images are previewed immediately and centered/cropped to fit. The browser converts images to WebP and scales them down to the slot's recommended maximum dimensions before uploading, while preserving the original aspect ratio. The website lazy-loads images below the hero. Blob delivers the optimized WebP as stored, without on-the-fly responsive image transformations; usage is subject to [Vercel Blob pricing](https://vercel.com/docs/vercel-blob#pricing).
+
+Configure these variables in Vercel **Production** (and Preview/Development if needed):
+
+- `BLOB_READ_WRITE_TOKEN`: added when connecting the Blob store with the read-write token option. It is required for authenticated browser uploads.
+- `ADMIN_PASSWORD`: a long, unique password used to authorize image management.
+
+`CLOUDINARY_URL` is no longer used and can be removed from the Vercel project after switching. For local development, connect the Blob store to the **Development** environment, then run `vercel env pull` to populate local variables. Use `.env.example` as a reference, but never commit real environment values.
+
+For local admin/API testing, use the Vercel CLI so the `/api/admin` function is available:
+
+```bash
+npx vercel dev
+```
+
+`npm run dev` and `npm run preview` run the Vite website only; they do not emulate Vercel Functions. The admin HTML is a separate Vite entry and is served at `/admin.html` in those modes.
+
+On Windows, if `vercel dev` fails with `EPERM` while creating a symlink under the Vercel CLI cache, enable **Developer Mode** in **Settings → System → For developers**, then retry. Running the terminal as Administrator is an alternative.
+
+Implementation references:
+- [Vercel Blob client uploads](https://vercel.com/docs/vercel-blob/client-upload)
+- [Vercel Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk)
+- [Vercel Blob public and private storage](https://vercel.com/docs/vercel-blob#private-and-public-storage)
+- [Vercel Node.js Functions](https://vercel.com/docs/functions/runtimes/node-js)
+- [Vercel clean URLs](https://vercel.com/docs/project-configuration/vercel-json#cleanurls)
+
 ## Before publishing
-- Replace the photo placeholder panels with the couple's approved photos.
+- Replace the photo placeholder panels at `/admin` with the couple's approved photos.
 - Confirm the full street address and map pin for Diamond Place 3. The current map button uses a Google Maps search, not a verified venue pin.
 - Confirm guest arrival and reception times; 17:00 and 17:30–21:00 are provisional display values.
 - Add the selected background music file and playback behavior if desired; music playback is intentionally not wired to a copyrighted track.
