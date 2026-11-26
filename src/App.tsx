@@ -649,15 +649,15 @@ export default function App() {
                 </div>
                 <Eyebrow>WHERE</Eyebrow>
                 <h3>Diamond Place 3</h3>
-                <p>Địa điểm tổ chức tiệc cưới</p>
-                <span>Thông tin địa chỉ sẽ được cập nhật</span>
+                <p>333 Nguyễn Văn Luông, phường Phú Lâm, Hồ Chí Minh</p>
+                <span>Địa điểm tổ chức tiệc cưới</span>
               </Detail>
             </DetailsGrid>
             <Center>
               <OutlineButton
                 onClick={() =>
                   window.open(
-                    "https://www.google.com/maps/search/?api=1&query=Diamond+Place+3+Vietnam",
+                    "https://maps.app.goo.gl/FZy8cqXpXVY5Sgv8A",
                     "_blank",
                   )
                 }
