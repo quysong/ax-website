@@ -7,7 +7,7 @@ Các việc cần tiếp tục ở phiên làm việc sau:
 3. **Trang quản trị ảnh và Vercel Blob:**
    - Quản lý 6 vị trí ảnh tại `/admin`; upload trực tiếp lên Blob qua token giới hạn do Vercel Function cấp sau khi xác thực mật khẩu admin.
    - Ảnh được nén thành WebP phía trình duyệt; website lấy URL mới nhất từ Blob qua endpoint công khai đã cache.
-   - Blob store đã tạo và biến môi trường local đã cấu hình; trước khi dùng production, xác minh store là public và project Vercel có `BLOB_READ_WRITE_TOKEN` cùng `ADMIN_PASSWORD`.
+   - Blob store đã tạo; giữ credentials trong env local/Vercel, không trong file ví dụ hoặc source.
    - Các import ESM của API vừa được sửa để thêm đuôi `.js`; cần xác nhận deployment mới không còn `FUNCTION_INVOCATION_FAILED`.
 
 ## Trạng thái hiện tại
@@ -15,55 +15,22 @@ Các việc cần tiếp tục ở phiên làm việc sau:
 - Dự án dùng React, TypeScript, Vite, prerender SSG và triển khai static trên Vercel.
 - `.env` được Git ignore; không commit giá trị biến môi trường.
 
-## Kế hoạch demo tiếp theo — gallery và hoạt cảnh chào
+## Đã triển khai trong phiên mới nhất
 
-Trang hiện có section `#gallery` với 3 ảnh tĩnh (`gallery-1` đến `gallery-3`), tiếp theo là RSVP và footer. Ưu tiên nâng cấp section này thay vì thêm một gallery trùng lặp; như vậy có thể dùng lại ảnh, admin và Blob hiện tại.
+- Gallery hiện là slideshow 3 ảnh có nút trước/sau, chấm chọn, phím mũi tên và vuốt trên mobile.
+- Có hoạt cảnh CSS nhẹ: cửa nhà mở, chú rể vẫy tay và cô dâu chú rể bước ra; hỗ trợ `prefers-reduced-motion`.
+- Admin `/admin` có thể upload MP3 (tối đa 30 MB, tối đa 30 track), đổi tên, bật/tắt, xóa; playlist metadata nằm trong Blob.
+- Website chỉ lấy track đã bật, audio dùng `preload="none"` và player nổi có play/pause, chọn bài. Autoplay được thử sau khi mở thiệp; trình duyệt có thể yêu cầu khách bấm phát.
+- RSVP chuyển qua `/api/rsvp` để nhận phản hồi thực từ Apps Script thay vì `no-cors`; form có checkbox đồng ý công khai tên/lời chúc.
+- Có `/api/wishes` và section lời chúc; chỉ dữ liệu consent mới được trả ra công khai.
+- Đã thay các giá trị Blob có vẻ thật trong `.env.example` bằng placeholder.
 
-### 1. Gallery dạng slideshow
+## Việc cần làm trước khi dùng production
 
-- Dùng 3 ảnh gallery hiện có làm các slide đầu tiên, giữ phong cách scrapbook/pastel của thiệp.
-- Thêm nút trước/sau và chỉ báo slide; hỗ trợ bàn phím, thao tác chạm trên mobile, nhãn truy cập cho screen reader.
-- Giữ khung ảnh ổn định để tránh layout shift; ảnh tải lazy khi cần.
-- Demo mặc định chuyển ảnh thủ công. Bàn thêm autoplay và số lượng ảnh trước khi mở rộng slot trong admin.
-
-### 2. Hoạt cảnh cô dâu chú rể ở cuối trang
-
-- Đặt cảnh gần cuối — sau RSVP, trước footer — như lời chào/tạm biệt khách.
-- Demo cảnh ngôi nhà mở cửa, cô dâu chú rể bước ra rồi cúi chào hoặc vẫy tay; chốt cử chỉ và tạo hình trong buổi demo.
-- Ưu tiên minh họa SVG/CSS nhẹ, không thêm thư viện animation hoặc tải asset lớn; có trạng thái tĩnh thân thiện với `prefers-reduced-motion`.
-- Giữ hoạt cảnh trang trí, không che nội dung hay làm chậm thao tác RSVP.
-
-### Tiêu chí kiểm tra demo
-
-- Xem được trên desktop và mobile; slideshow điều khiển được bằng chuột, chạm và bàn phím.
-- Tôn trọng cài đặt giảm chuyển động, không gây tràn ngang hoặc nhảy bố cục.
-- Chạy `npm run build` để xác nhận vẫn prerender/SSG thành công.
-
-## Kế hoạch phiên tiếp theo — RSVP, lời chúc và nhạc nền
-
-### 1. Kiểm thử RSVP với Google Sheets
-
-- Gửi một vài RSVP thử có tên/nội dung dễ nhận biết là dữ liệu kiểm thử; xác nhận các dòng thực sự xuất hiện trong Google Sheet.
-- Kiểm tra cả trường hợp tham dự và không tham dự, cùng lời nhắn của khách.
-- Không xóa các dòng kiểm thử khỏi Sheet nếu chưa thống nhất cách dọn dữ liệu.
-
-### 2. Hiển thị lời chúc của khách mời
-
-- Thiết kế một section lời chúc phù hợp với phong cách thiệp sau khi xác nhận luồng ghi RSVP hoạt động.
-- Kiểm tra Apps Script hiện tại có hỗ trợ đọc danh sách lời chúc không; nếu chưa, thiết kế endpoint chỉ trả dữ liệu được phép công khai.
-- Cân nhắc consent/duyệt trước khi công khai tên và lời nhắn của khách.
-
-### 3. Quản lý và phát nhạc nền
-
-- Mở rộng `/admin` để quản lý nhiều track: upload audio lên Blob, nhập tên bài, bật/tắt từng bài trong playlist.
-- Chỉ tải các track được bật; đặt giới hạn định dạng/kích thước và lưu ý băng thông Blob.
-- Tạo nút nhạc nổi có play/pause và mở playlist; thiết kế responsive, cho phép khách chủ động tắt nhạc.
-- Trình duyệt có thể chặn autoplay có âm thanh trước tương tác của khách; cần xử lý graceful fallback yêu cầu chạm/bấm để phát.
-- Các bài “Hơn Cả Yêu”, “Ánh nắng của anh” và “A Thousand Years” là ví dụ mong muốn; chỉ dùng file do người dùng cung cấp có quyền sử dụng hoặc file đã được cấp phép.
-
-### Thứ tự đề xuất
-
-1. Xác nhận Blob API hoạt động trên deployment mới.
-2. Test RSVP end-to-end và xác nhận dữ liệu trên Sheet.
-3. Chốt consent/duyệt cho lời chúc, rồi làm demo section.
-4. Làm demo quản lý playlist và player; sau đó tiếp tục gallery slideshow và hoạt cảnh chào đã ghi ở trên.
+1. **Bảo mật trước tiên:** read-write token Blob đã từng nằm trong file `.env.example` được Git track. File hiện chỉ còn placeholder; revoke token cũ trong Vercel, tạo token mới và cập nhật `.env.local` cùng Vercel env. Nếu đã push, token cũ vẫn có thể còn trong Git history.
+2. Deploy source mới lên Vercel; cấu hình runtime env `GOOGLE_SCRIPT_APP`, `BLOB_READ_WRITE_TOKEN` mới và `ADMIN_PASSWORD` cho Production.
+3. Hai RSVP smoke-test trực tiếp tới Apps Script trong phiên này đều nhận HTTP 401/non-JSON; chưa xác nhận được có dòng nào được ghi. Kiểm tra Google Apps Script deployment chạy as owner và quyền truy cập **Anyone**.
+4. Cập nhật/redeploy Apps Script bằng `google-apps-script/Code.gs` để hỗ trợ `publishWish` và `doGet?action=wishes`; endpoint GET hiện tại chưa trả JSON lời chúc.
+5. Sau khi deploy, test RSVP tham dự/từ chối qua form và kiểm tra Sheet; chỉ lời chúc đã được khách đồng ý mới hiện công khai. Không xóa dữ liệu test nếu chưa thống nhất.
+6. Đăng nhập `/admin`, upload file MP3 bạn có quyền sử dụng, bật track muốn phát và thử player trên mobile/desktop. Chưa có file audio nào được upload trong phiên này.
+7. Chạy `npm run build`; build tương đương (TypeScript, client, SSR, prerender) đã thành công khi tránh bước xóa file output cũ đang bị Windows khóa.

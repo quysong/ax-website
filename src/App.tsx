@@ -5,14 +5,21 @@ import {
   ArrowUpRight,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Heart,
   MapPin,
+  Music2,
+  Pause,
+  Play,
   Send,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { imageSlots, type ImageSlotId } from "./image-slots";
+import type { MusicTrack } from "./music";
 const WEDDING_DATE = new Date("2027-03-14T17:30:00+07:00");
-const RSVP_ENDPOINT = import.meta.env.VITE_RSVP_ENDPOINT;
 const COUNT_LABELS: Record<string, string> = {
   days: "NGÀY",
   hours: "GIỜ",
@@ -224,35 +231,41 @@ function RSVP() {
   const [attendance, setAttendance] = useState<"yes" | "no">("yes");
   const [guests, setGuests] = useState("2");
   const [message, setMessage] = useState("");
+  const [publishWish, setPublishWish] = useState(false);
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("loading");
-    if (!RSVP_ENDPOINT) {
-      setStatus("error");
-      return;
-    }
+    setErrorMessage("");
     const payload = {
       name,
       attendance,
       guests: attendance === "yes" ? Number(guests) : 0,
       message,
+      publishWish,
       submittedAt: new Date().toISOString(),
     };
     try {
-      const response = await fetch(RSVP_ENDPOINT, {
+      const response = await fetch("/api/rsvp", {
         method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (response.type !== "opaque" && !response.ok) {
-        throw new Error("RSVP submission failed");
+      const result = (await response.json()) as { error?: string; ok?: boolean };
+      if (!response.ok || result.ok !== true) {
+        throw new Error(result.error ?? "RSVP submission failed");
       }
       setStatus("success");
-    } catch {
+    } catch (error) {
+      console.error("Could not submit RSVP.", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Chưa gửi được xác nhận vào Google Sheets.",
+      );
       setStatus("error");
     }
   }
@@ -330,21 +343,276 @@ function RSVP() {
               rows={3}
             />
           </label>
+          <label className="wish-consent">
+            <input
+              type="checkbox"
+              checked={publishWish}
+              onChange={(event) => setPublishWish(event.target.checked)}
+            />
+            <span>
+              Mình đồng ý công khai tên và lời chúc này trên thiệp cưới.
+            </span>
+          </label>
           {status === "error" && (
-            <p className="error">
-              Chưa gửi được xác nhận. Bạn vui lòng thử lại nhé.
-            </p>
+            <p className="error">{errorMessage} Bạn vui lòng thử lại nhé.</p>
           )}
           <Button type="submit" disabled={status === "loading"}>
             {status === "loading" ? "ĐANG GỬI..." : "GỬI XÁC NHẬN"}{" "}
             <Send size={14} />
           </Button>
           <small className="local-note">
-            Thông tin xác nhận sẽ được gửi riêng đến Anh & Xinh.
+            Chỉ lời chúc bạn đồng ý công khai mới xuất hiện trên thiệp.
           </small>
         </form>
       )}
     </RSVPCard>
+  );
+}
+
+function GalleryCarousel({
+  imageUrls,
+}: {
+  imageUrls: Partial<Record<ImageSlotId, string>>;
+}) {
+  const slides = [
+    { slotId: "gallery-1", caption: "a day to remember", alt: "Ảnh cưới của Anh và Xinh" },
+    { slotId: "gallery-2", caption: "just the two of us", alt: "Khoảnh khắc của Anh và Xinh" },
+    { slotId: "gallery-3", caption: "happily ever after", alt: "Kỷ niệm ngày cưới của Anh và Xinh" },
+  ] as const;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const touchStart = useRef<number | null>(null);
+  const activeSlide = slides[activeIndex];
+  const move = (direction: number) =>
+    setActiveIndex((index) => (index + direction + slides.length) % slides.length);
+
+  return (
+    <Carousel
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Bộ sưu tập ảnh cưới"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") move(-1);
+        if (event.key === "ArrowRight") move(1);
+      }}
+      onTouchStart={(event) => {
+        touchStart.current = event.touches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStart.current;
+        const end = event.changedTouches[0]?.clientX;
+        if (start !== null && end !== undefined && Math.abs(end - start) > 40) {
+          move(end < start ? 1 : -1);
+        }
+        touchStart.current = null;
+      }}
+    >
+      <Photo className="slide-photo">
+        <div className={`slide-scene scene-${activeIndex + 1}`}>
+          <span>
+            YOUR
+            <br />
+            PHOTO
+          </span>
+          <WeddingPhoto
+            slotId={activeSlide.slotId}
+            src={imageUrls[activeSlide.slotId]}
+            alt={activeSlide.alt}
+            eager
+          />
+        </div>
+        <div className="photo-caption">{activeSlide.caption}</div>
+      </Photo>
+      <div className="carousel-controls">
+        <button type="button" aria-label="Ảnh trước" onClick={() => move(-1)}>
+          <ChevronLeft size={20} />
+        </button>
+        <div className="carousel-dots" aria-label="Chọn ảnh">
+          {slides.map((slide, index) => (
+            <button
+              key={slide.slotId}
+              type="button"
+              aria-label={`Ảnh ${index + 1} trên ${slides.length}`}
+              aria-current={index === activeIndex ? "true" : undefined}
+              onClick={() => setActiveIndex(index)}
+            />
+          ))}
+        </div>
+        <span aria-live="polite">
+          {activeIndex + 1} / {slides.length}
+        </span>
+        <button type="button" aria-label="Ảnh tiếp theo" onClick={() => move(1)}>
+          <ChevronRight size={20} />
+        </button>
+      </div>
+    </Carousel>
+  );
+}
+
+type PublicWish = { name: string; message: string };
+
+function GuestWishes() {
+  const [wishes, setWishes] = useState<PublicWish[]>([]);
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/wishes")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const result = (await response.json()) as { wishes?: PublicWish[] };
+        if (active && Array.isArray(result.wishes)) {
+          setWishes(result.wishes);
+          setAvailable(true);
+        }
+      })
+      .catch((error: unknown) =>
+        console.error("Could not load guest wishes.", error),
+      );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <Section id="wishes">
+      <Center>
+        <Eyebrow>CHAPTER 05 · KIND WORDS</Eyebrow>
+        <Heading>
+          Lời thương <i>gửi lại</i>
+        </Heading>
+        {wishes.length ? (
+          <WishList>
+            {wishes.map((wish, index) => (
+              <blockquote key={`${wish.name}-${index}`}>
+                <span>“{wish.message}”</span>
+                <cite>— {wish.name}</cite>
+              </blockquote>
+            ))}
+          </WishList>
+        ) : (
+          <p className="section-lead">
+            {available
+              ? "Những lời chúc đầu tiên sẽ được gửi tại đây."
+              : "Lời chúc sẽ xuất hiện tại đây sau khi kết nối danh sách chia sẻ từ Google Sheets."}
+          </p>
+        )}
+      </Center>
+    </Section>
+  );
+}
+
+function MusicPlayer({ isActive }: { isActive: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [tracks, setTracks] = useState<Pick<MusicTrack, "url" | "title">[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!isActive) return;
+    let mounted = true;
+    void fetch("/api/music")
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Music list request failed (${response.status}).`);
+        const result = (await response.json()) as {
+          tracks?: Pick<MusicTrack, "url" | "title">[];
+        };
+        if (mounted && Array.isArray(result.tracks) && result.tracks.length) {
+          setTracks(result.tracks);
+        }
+      })
+      .catch((error: unknown) =>
+        console.error("Could not load wedding music.", error),
+      );
+    return () => {
+      mounted = false;
+    };
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!tracks.length) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = tracks[activeIndex]?.url ?? tracks[0].url;
+    audio.load();
+    void audio.play().then(
+      () => {
+        setIsPlaying(true);
+        setMessage("");
+      },
+      () => {
+        setIsPlaying(false);
+        setMessage("Chạm nút phát để bật nhạc.");
+      },
+    );
+  }, [tracks, activeIndex]);
+
+  async function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio || !tracks.length) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      setMessage("");
+    } catch {
+      setMessage("Trình duyệt cần bạn chạm nút phát để nghe nhạc.");
+    }
+  }
+
+  if (!tracks.length) return null;
+  return (
+    <MusicWidget>
+      <audio
+        ref={audioRef}
+        preload="none"
+        onEnded={() => setActiveIndex((index) => (index + 1) % tracks.length)}
+        onError={() => {
+          setIsPlaying(false);
+          setMessage("Không phát được bài này. Hãy thử bài khác.");
+        }}
+      />
+      {isOpen && (
+        <div className="playlist" aria-label="Danh sách phát">
+          <strong>Nhạc của chúng mình</strong>
+          {tracks.map((track, index) => (
+            <button
+              key={track.url}
+              type="button"
+              className={index === activeIndex ? "active" : ""}
+              onClick={() => setActiveIndex(index)}
+            >
+              <span>{track.title}</span>
+              {index === activeIndex && <Music2 size={16} />}
+            </button>
+          ))}
+          {message && <small aria-live="polite">{message}</small>}
+        </div>
+      )}
+      <button
+        type="button"
+        className="music-toggle"
+        aria-label={isPlaying ? "Tạm dừng nhạc" : "Phát nhạc"}
+        onClick={() => void togglePlayback()}
+      >
+        {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+        {isPlaying ? <Volume2 size={16} /> : <VolumeX size={16} />}
+      </button>
+      <button
+        type="button"
+        className="playlist-toggle"
+        aria-label={isOpen ? "Đóng danh sách phát" : "Mở danh sách phát"}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <Music2 size={17} />
+      </button>
+    </MusicWidget>
   );
 }
 const StoryPhoto = styled.div`
@@ -676,53 +944,7 @@ export default function App() {
                 Một vài khung hình nhỏ, lưu lại những điều thật to.
               </p>
             </Center>
-            <Gallery>
-              <Photo className="g1">
-                <div className="scene-four">
-                  <span>
-                    YOUR
-                    <br />
-                    PHOTO
-                  </span>
-                  <WeddingPhoto
-                    slotId="gallery-1"
-                    src={imageUrls["gallery-1"]}
-                    alt="Ảnh cưới của Anh và Xinh trong bộ sưu tập"
-                  />
-                </div>
-                <div className="photo-caption">a day to remember</div>
-              </Photo>
-              <Photo className="g2">
-                <div className="scene-five">
-                  <span>
-                    YOUR
-                    <br />
-                    PHOTO
-                  </span>
-                  <WeddingPhoto
-                    slotId="gallery-2"
-                    src={imageUrls["gallery-2"]}
-                    alt="Ảnh cưới thứ hai trong bộ sưu tập"
-                  />
-                </div>
-                <div className="photo-caption">just the two of us</div>
-              </Photo>
-              <Photo className="g3">
-                <div className="scene-six">
-                  <span>
-                    YOUR
-                    <br />
-                    PHOTO
-                  </span>
-                  <WeddingPhoto
-                    slotId="gallery-3"
-                    src={imageUrls["gallery-3"]}
-                    alt="Ảnh cưới thứ ba trong bộ sưu tập"
-                  />
-                </div>
-                <div className="photo-caption">happily ever after</div>
-              </Photo>
-            </Gallery>
+            <GalleryCarousel imageUrls={imageUrls} />
             <Center>
               <Script>More memories are on the way...</Script>
             </Center>
@@ -739,6 +961,8 @@ export default function App() {
               <RSVP />
             </Center>
           </Section>
+          <GuestWishes />
+          <HouseScene />
           <Footer>
             <div className="footer-flower">✿</div>
             <Script>With all our love</Script>
@@ -753,8 +977,51 @@ export default function App() {
               BACK TO TOP ↑
             </button>
           </Footer>
+          <MusicPlayer isActive={opened} />
       </div>
     </Page>
+  );
+}
+function HouseScene() {
+  return (
+    <HouseSection aria-label="Lời chào từ cô dâu chú rể">
+      <Center>
+        <Eyebrow>OUR LITTLE HOME</Eyebrow>
+        <Heading>
+          Hẹn gặp bạn <i>ở ngày vui</i>
+        </Heading>
+        <p className="section-lead">
+          Tụi mình đang đợi bạn đến chung vui!
+        </p>
+      </Center>
+      <div className="scene" aria-hidden="true">
+        <div className="cloud cloud-one" />
+        <div className="cloud cloud-two" />
+        <div className="house">
+          <div className="roof" />
+          <div className="house-body">
+            <div className="window window-left" />
+            <div className="window window-right" />
+            <div className="door">
+              <span className="doorknob" />
+            </div>
+          </div>
+          <div className="step" />
+        </div>
+        <div className="couple">
+          <div className="person groom">
+            <span className="head" />
+            <span className="body" />
+          </div>
+          <div className="person bride">
+            <span className="head" />
+            <span className="body" />
+            <span className="veil" />
+          </div>
+        </div>
+        <span className="greeting">♡</span>
+      </div>
+    </HouseSection>
   );
 }
 const Intro = styled.div`
@@ -1434,48 +1701,419 @@ const Detail = styled.div`
     margin: 0;
   }
 `;
-const Gallery = styled.div`
-  max-width: 900px;
-  margin: 65px auto 35px;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 30px;
-  align-items: center;
-  .g1 {
-    transform: rotate(-5deg);
-    height: 310px;
+const Carousel = styled.div`
+  max-width: 560px;
+  margin: 55px auto 0;
+  &:focus-visible {
+    outline: 2px solid #bd8991;
+    outline-offset: 10px;
   }
-  .g2 {
-    transform: rotate(3deg);
-    height: 360px;
+  .slide-photo {
+    width: min(440px, 88%);
+    margin: 0 auto;
+    transform: rotate(-2deg);
   }
-  .g3 {
-    transform: rotate(6deg);
-    height: 290px;
+  .slide-scene {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    height: clamp(300px, 55vw, 460px);
+    color: #fffaf5;
+    background: linear-gradient(140deg, #d9c6ca, #b18491);
+    font: 500 19px "Cormorant Garamond", serif;
+    letter-spacing: 0.15em;
   }
-  .g1 .scene-four {
+  .slide-scene.scene-2 {
     background: linear-gradient(140deg, #c4b2ad, #927a75);
   }
-  .g2 .scene-five {
-    background: linear-gradient(140deg, #d9c6ca, #b18491);
-  }
-  .g3 .scene-six {
+  .slide-scene.scene-3 {
     background: linear-gradient(140deg, #c9d5c3, #879782);
   }
-  @media (max-width: 650px) {
-    gap: 12px;
-    .g1,
-    .g2,
-    .g3 {
-      height: 210px;
-      padding: 6px 6px 28px;
+  .slide-scene > img {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .slide-scene.has-image > span {
+    visibility: hidden;
+  }
+  .carousel-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin: 28px auto 0;
+    color: #806a63;
+    font-size: 13px;
+  }
+  .carousel-controls > button,
+  .carousel-dots button {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid #d9bfc0;
+    border-radius: 50%;
+    background: #fffaf5;
+    color: #806a63;
+  }
+  .carousel-dots {
+    display: flex;
+    gap: 9px;
+  }
+  .carousel-dots button {
+    width: 12px;
+    height: 12px;
+    padding: 0;
+  }
+  .carousel-dots button[aria-current="true"] {
+    border-color: #bd8991;
+    background: #bd8991;
+  }
+  @media (max-width: 520px) {
+    .slide-scene {
+      height: 350px;
     }
-    .g2 {
-      height: 240px;
+    .carousel-controls {
+      gap: 12px;
     }
-    .photo-caption {
-      font-size: 14px;
+  }
+`;
+const WishList = styled.div`
+  width: min(760px, 100%);
+  margin: 36px auto 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 16px;
+  blockquote {
+    margin: 0;
+    padding: 24px;
+    border: 1px solid #e9d8d1;
+    background: #fffaf5;
+    color: #806a63;
+    font: 17px/1.8 "Noto Sans", sans-serif;
+    text-align: left;
+  }
+  cite {
+    display: block;
+    margin-top: 12px;
+    color: #ad8582;
+    font-size: 14px;
+    font-style: normal;
+  }
+`;
+const HouseSection = styled(Section)`
+  overflow: hidden;
+  .scene {
+    position: relative;
+    width: min(720px, 100%);
+    height: 340px;
+    margin: 55px auto 0;
+    overflow: hidden;
+    border-radius: 220px 220px 18px 18px;
+    background: linear-gradient(#dbe7e2 0 62%, #b8c8ae 62%);
+  }
+  .cloud {
+    position: absolute;
+    top: 55px;
+    width: 90px;
+    height: 25px;
+    border-radius: 50%;
+    background: #fffaf5c9;
+  }
+  .cloud::before,
+  .cloud::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: inherit;
+  }
+  .cloud::before {
+    left: 14px;
+  }
+  .cloud::after {
+    right: 12px;
+    width: 30px;
+    height: 30px;
+  }
+  .cloud-one {
+    left: 14%;
+  }
+  .cloud-two {
+    top: 105px;
+    right: 12%;
+    transform: scale(0.7);
+  }
+  .house {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    width: 270px;
+    height: 228px;
+    transform: translateX(-50%);
+  }
+  .roof {
+    position: absolute;
+    top: 0;
+    left: 4px;
+    width: 262px;
+    height: 130px;
+    background: #b98584;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+  .house-body {
+    position: absolute;
+    right: 20px;
+    bottom: 0;
+    left: 20px;
+    height: 145px;
+    background: #fff4e8;
+    border: 3px solid #bd9b8b;
+  }
+  .window {
+    position: absolute;
+    top: 28px;
+    width: 42px;
+    height: 48px;
+    border: 4px solid #fffaf5;
+    background: #c9d9d3;
+    box-shadow: inset 0 0 0 2px #c5a394;
+  }
+  .window-left {
+    left: 13px;
+  }
+  .window-right {
+    right: 13px;
+  }
+  .door {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 62px;
+    height: 104px;
+    transform-origin: left center;
+    border: 3px solid #a47770;
+    background: #c99a8a;
+    animation: open-door 8s ease-in-out infinite;
+  }
+  .doorknob {
+    position: absolute;
+    top: 54%;
+    right: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f7df9d;
+  }
+  .step {
+    position: absolute;
+    bottom: -7px;
+    left: 0;
+    width: 100%;
+    height: 9px;
+    border-radius: 50%;
+    background: #bd9b8b;
+  }
+  .couple {
+    position: absolute;
+    z-index: 2;
+    bottom: 30px;
+    left: 50%;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    animation: couple-exit 8s ease-in-out infinite;
+  }
+  .person {
+    position: relative;
+    width: 45px;
+    height: 100px;
+  }
+  .person .head {
+    position: absolute;
+    top: 4px;
+    left: 12px;
+    width: 23px;
+    height: 26px;
+    border-radius: 50%;
+    background: #e8b99a;
+  }
+  .person .body {
+    position: absolute;
+    bottom: 0;
+    left: 3px;
+    width: 40px;
+    height: 73px;
+    border-radius: 22px 22px 8px 8px;
+    background: #6d6967;
+  }
+  .groom::after {
+    content: "";
+    position: absolute;
+    top: 35px;
+    right: -7px;
+    width: 20px;
+    height: 7px;
+    border-radius: 8px;
+    background: #6d6967;
+    transform-origin: left center;
+    animation: groom-wave 0.8s ease-in-out infinite alternate;
+  }
+  .bride .body {
+    left: 0;
+    width: 46px;
+    height: 72px;
+    border-radius: 25px 25px 8px 8px;
+    background: #fffaf5;
+    clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+  }
+  .bride .veil {
+    position: absolute;
+    top: 7px;
+    left: 6px;
+    width: 36px;
+    height: 49px;
+    border-radius: 50% 50% 10px 10px;
+    border: 2px solid #fffaf5;
+  }
+  .greeting {
+    position: absolute;
+    z-index: 3;
+    right: calc(50% - 115px);
+    bottom: 155px;
+    color: #bd8991;
+    font-size: 30px;
+    animation: greeting-wave 1.2s ease-in-out infinite;
+  }
+  @keyframes open-door {
+    0%, 12%, 100% { transform: perspective(350px) rotateY(0); }
+    22%, 78% { transform: perspective(350px) rotateY(-72deg); }
+    90% { transform: perspective(350px) rotateY(0); }
+  }
+  @keyframes couple-exit {
+    0%, 18% {
+      transform: translateX(-50%) translateY(8px) scale(0.82);
+      opacity: 0;
     }
+    34% {
+      transform: translateX(-50%) translateY(0) translateX(-48px) scale(1);
+      opacity: 1;
+    }
+    76%, 100% {
+      transform: translateX(-50%) translateY(0) translateX(-48px) scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes greeting-wave {
+    0%, 100% { transform: rotate(-10deg) scale(1); }
+    50% { transform: rotate(12deg) scale(1.12); }
+  }
+  @keyframes groom-wave {
+    from { transform: rotate(-15deg); }
+    to { transform: rotate(-70deg); }
+  }
+  @media (max-width: 520px) {
+    .scene {
+      height: 290px;
+    }
+    .house {
+      transform: translateX(-50%) scale(0.82);
+      transform-origin: bottom center;
+    }
+    .couple {
+      bottom: 25px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .door,
+    .couple,
+    .greeting,
+    .groom::after {
+      animation: none;
+    }
+    .door {
+      transform: perspective(350px) rotateY(-72deg);
+    }
+    .couple {
+      transform: translateX(-50%) translateX(-48px);
+      opacity: 1;
+    }
+  }
+`;
+const MusicWidget = styled.div`
+  position: fixed;
+  z-index: 15;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  .music-toggle,
+  .playlist-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 52px;
+    min-height: 52px;
+    border: 0;
+    border-radius: 50%;
+    background: #a97680;
+    color: white;
+    box-shadow: 0 5px 18px #765b5730;
+  }
+  .playlist-toggle {
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    background: #fffaf5;
+    color: #806a63;
+  }
+  .playlist {
+    width: min(310px, calc(100vw - 36px));
+    padding: 16px;
+    border: 1px solid #e9d8d1;
+    background: #fffaf5;
+    box-shadow: 0 12px 32px #765b5726;
+  }
+  .playlist strong {
+    display: block;
+    margin: 0 0 8px;
+    color: #715a55;
+    font: 500 23px "Cormorant Garamond", serif;
+  }
+  .playlist button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 4px;
+    border: 0;
+    border-bottom: 1px solid #f0e2dc;
+    background: transparent;
+    color: #806a63;
+    text-align: left;
+    font: inherit;
+    font-size: 14px;
+  }
+  .playlist button.active {
+    color: #a97680;
+  }
+  .playlist small {
+    display: block;
+    margin-top: 10px;
+    color: #ad8582;
+    font-size: 13px;
+    line-height: 1.5;
   }
 `;
 const RSVPCard = styled.div`
@@ -1549,6 +2187,20 @@ const RSVPCard = styled.div`
   }
   textarea {
     resize: vertical;
+  }
+  .wish-consent {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.6;
+  }
+  .wish-consent input {
+    flex: 0 0 18px;
+    width: 18px;
+    min-height: 18px;
+    margin: 2px 0 0;
+    accent-color: #bd8991;
   }
   .choice {
     display: grid;

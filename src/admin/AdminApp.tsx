@@ -2,11 +2,15 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { styled } from "styled-components";
 import { upload } from "@vercel/blob/client";
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Eye,
   EyeOff,
   ImagePlus,
   LogOut,
+  Music2,
+  Trash2,
   Upload,
 } from "lucide-react";
 import {
@@ -26,6 +30,13 @@ type ManagedSlot = {
 type AdminResponse = {
   error?: string;
   slots?: ManagedSlot[];
+  musicTracks?: ManagedMusicTrack[];
+};
+type ManagedMusicTrack = {
+  pathname: string;
+  url: string;
+  title: string;
+  enabled: boolean;
 };
 
 const Shell = styled.main`
@@ -227,14 +238,143 @@ const SlotCard = styled.article`
     }
   }
 `;
+const ManagementSection = styled.section`
+  margin-top: 48px;
+  h2 {
+    margin: 0;
+    color: #715a55;
+    font: 500 32px/1.1 "Cormorant Garamond", serif;
+  }
+  > p {
+    max-width: 720px;
+    color: #806a63;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+`;
+const MusicPanel = styled.div`
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #e9d8d1;
+  background: #fffaf5;
+  .upload-form {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+  }
+  label {
+    display: grid;
+    gap: 7px;
+    color: #715a55;
+    font-size: 14px;
+  }
+  input[type="text"],
+  input[type="file"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px;
+    border: 1px solid #dfcbc4;
+    background: white;
+    color: #65514d;
+    font: inherit;
+    font-size: 14px;
+  }
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #bd8991;
+  }
+  .track-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .track {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto auto auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #f0e2dc;
+  }
+  .track > button {
+    margin-top: 0;
+  }
+  .move-controls {
+    display: flex;
+    gap: 5px;
+  }
+  .move-controls button {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 40px;
+    border: 1px solid #e8d8d1;
+    background: #fffdf9;
+    color: #806a63;
+  }
+  .move-controls button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .enabled {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .delete {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #e8d8d1;
+    background: transparent;
+    color: #a55359;
+  }
+  .empty {
+    margin: 14px 0 0;
+    color: #927c75;
+    font-size: 14px;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  @media (max-width: 720px) {
+    padding: 16px;
+    .upload-form {
+      grid-template-columns: 1fr;
+    }
+    .track {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .track label:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+`;
 
 function AdminApp() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [slots, setSlots] = useState<ManagedSlot[]>([]);
+  const [musicTracks, setMusicTracks] = useState<ManagedMusicTrack[]>([]);
+  const [musicTitle, setMusicTitle] = useState("");
+  const [musicFile, setMusicFile] = useState<File | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busySlotId, setBusySlotId] = useState<string | null>(null);
+  const [busyMusic, setBusyMusic] = useState(false);
   const [message, setMessage] = useState("");
   const [messageIsError, setMessageIsError] = useState(false);
   const [previewOverrides, setPreviewOverrides] = useState<
@@ -277,6 +417,53 @@ function AdminApp() {
     return result;
   }
 
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      try {
+        const sessionResponse = await fetch("/api/admin-session", {
+          cache: "no-store",
+        });
+        if (!sessionResponse.ok) {
+          if (/\/admin\/home\/?$/.test(window.location.pathname)) {
+            window.history.replaceState(null, "", "/admin");
+          }
+          return;
+        }
+
+        if (!active) return;
+        setAuthenticated(true);
+        if (!/\/admin\/home\/?$/.test(window.location.pathname)) {
+          window.history.replaceState(null, "", "/admin/home");
+        }
+
+        const response = await fetch("/api/admin", { cache: "no-store" });
+        const result = await readResponse(response);
+        if (active) {
+          setSlots(result.slots ?? []);
+          setMusicTracks(result.musicTracks ?? []);
+        }
+      } catch (error) {
+        if (active) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải dữ liệu quản trị.",
+          );
+          setMessageIsError(true);
+        }
+      } finally {
+        if (active) setCheckingSession(false);
+      }
+    }
+
+    void restoreSession();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -284,12 +471,19 @@ function AdminApp() {
     setMessageIsError(false);
 
     try {
-      const response = await fetch("/api/admin", {
-        headers: { Authorization: `Bearer ${password}` },
+      const sessionResponse = await fetch("/api/admin-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
       });
+      await readResponse(sessionResponse);
+      const response = await fetch("/api/admin", { cache: "no-store" });
       const result = await readResponse(response);
       setSlots(result.slots ?? []);
+      setMusicTracks(result.musicTracks ?? []);
       setAuthenticated(true);
+      setPassword("");
+      window.history.replaceState(null, "", "/admin/home");
       setMessage("Đã kết nối với Vercel Blob.");
     } catch (error) {
       setMessage(
@@ -298,6 +492,166 @@ function AdminApp() {
       setMessageIsError(true);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadMusic(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      if (!musicFile || !musicTitle.trim()) {
+        setMessageIsError(true);
+        setMessage("Hãy chọn file MP3 và nhập tên bài hát.");
+        return;
+      }
+      if (
+        musicFile.type !== "audio/mpeg" ||
+        !musicFile.name.toLowerCase().endsWith(".mp3")
+      ) {
+        setMessageIsError(true);
+        setMessage("Chỉ hỗ trợ file MP3.");
+        return;
+      }
+      if (musicFile.size > 30 * 1024 * 1024) {
+        setMessageIsError(true);
+        setMessage("Mỗi file MP3 cần nhỏ hơn 30 MB.");
+        return;
+      }
+
+      setBusyMusic(true);
+      setMessage("");
+      setMessageIsError(false);
+      try {
+        const slug = musicTitle
+          .trim()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 60) || "wedding-track";
+        const blob = await upload(
+          `wedding/music/tracks/${slug}.mp3`,
+          musicFile,
+          {
+            access: "public",
+            contentType: "audio/mpeg",
+            handleUploadUrl: "/api/admin",
+            headers: { Authorization: `Bearer ${password}` },
+            clientPayload: JSON.stringify({
+              kind: "music",
+              title: musicTitle.trim(),
+            }),
+            multipart: true,
+          },
+        );
+        const nextTracks = [
+          ...musicTracks,
+          {
+            pathname: blob.pathname,
+            url: blob.url,
+            title: musicTitle.trim(),
+            enabled: true,
+          },
+        ];
+        const response = await fetch("/api/admin", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${password}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tracks: nextTracks.map(({ pathname, title, enabled }) => ({
+              pathname,
+              title,
+              enabled,
+            })),
+          }),
+        });
+        const result = await readResponse(response);
+        setMusicTracks(result.musicTracks ?? []);
+        setMusicFile(null);
+        setMusicTitle("");
+        const input = document.querySelector<HTMLInputElement>(
+          'input[type="file"][data-role="music"]',
+        );
+        if (input) input.value = "";
+        setMessage(`Đã tải lên "${musicTitle.trim()}".`);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Không thể tải MP3 lên.");
+        setMessageIsError(true);
+      } finally {
+        setBusyMusic(false);
+      }
+  }
+
+  async function saveMusicTracks(
+    nextTracks: ManagedMusicTrack[],
+    previousTracks?: ManagedMusicTrack[],
+  ) {
+      setBusyMusic(true);
+      setMessage("");
+      setMessageIsError(false);
+      try {
+        const response = await fetch("/api/admin", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${password}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tracks: nextTracks.map(({ pathname, title, enabled }) => ({
+              pathname,
+              title,
+              enabled,
+            })),
+          }),
+        });
+        const result = await readResponse(response);
+        setMusicTracks(result.musicTracks ?? []);
+        setMessage("Đã lưu danh sách phát.");
+      } catch (error) {
+        if (previousTracks) setMusicTracks(previousTracks);
+        setMessage(error instanceof Error ? error.message : "Không thể lưu playlist.");
+        setMessageIsError(true);
+      } finally {
+        setBusyMusic(false);
+      }
+  }
+
+  function moveMusicTrack(index: number, direction: -1 | 1) {
+    const destination = index + direction;
+    if (destination < 0 || destination >= musicTracks.length || busyMusic) return;
+
+    const previousTracks = musicTracks;
+    const nextTracks = [...musicTracks];
+    [nextTracks[index], nextTracks[destination]] = [
+      nextTracks[destination],
+      nextTracks[index],
+    ];
+    setMusicTracks(nextTracks);
+    void saveMusicTracks(nextTracks, previousTracks);
+  }
+
+  async function deleteMusicTrack(track: ManagedMusicTrack) {
+      if (!window.confirm(`Xóa "${track.title}" khỏi Blob và playlist?`)) return;
+      setBusyMusic(true);
+      setMessage("");
+      setMessageIsError(false);
+      try {
+        const response = await fetch("/api/admin", {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${password}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ pathname: track.pathname }),
+        });
+        const result = await readResponse(response);
+        setMusicTracks(result.musicTracks ?? []);
+        setMessage(`Đã xóa "${track.title}".`);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Không thể xóa bài hát.");
+        setMessageIsError(true);
+      } finally {
+        setBusyMusic(false);
     }
   }
 
@@ -354,7 +708,7 @@ function AdminApp() {
           access: "public",
           handleUploadUrl: "/api/admin",
           headers: { Authorization: `Bearer ${password}` },
-          clientPayload: JSON.stringify({ slotId: slot.id }),
+          clientPayload: JSON.stringify({ kind: "image", slotId: slot.id }),
           multipart: true,
         },
       );
@@ -390,14 +744,26 @@ function AdminApp() {
     }
   }
 
-  function signOut() {
+  async function signOut() {
+    try {
+      const response = await fetch("/api/admin-session", { method: "DELETE" });
+      await readResponse(response);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Không thể đăng xuất an toàn.",
+      );
+      setMessageIsError(true);
+      return;
+    }
     setAuthenticated(false);
     setPassword("");
     setSlots([]);
+    setMusicTracks([]);
     previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
     previewUrls.current.clear();
     setPreviewOverrides({});
     setMessage("");
+    window.history.replaceState(null, "", "/admin");
   }
 
   return (
@@ -412,13 +778,15 @@ function AdminApp() {
           </ActionButton>
         )}
       </Header>
-      <Title>Quản lý hình ảnh</Title>
+      <Title>Quản lý hình ảnh & nhạc</Title>
       <Intro>
         Tải ảnh mới cho từng vị trí trên thiệp. Ảnh được lưu trên Vercel Blob
         và thay thế ảnh hiện tại ở vị trí đã chọn.
       </Intro>
 
-      {!authenticated ? (
+      {checkingSession ? (
+        <Message>Đang kiểm tra phiên quản trị...</Message>
+      ) : !authenticated ? (
         <LoginCard onSubmit={signIn}>
           <label htmlFor="admin-password">Mật khẩu quản trị</label>
           <div className="password-field">
@@ -445,6 +813,7 @@ function AdminApp() {
           </ActionButton>
         </LoginCard>
       ) : (
+        <>
         <SlotGrid aria-label="Các vị trí ảnh trên thiệp">
           {slots.map((slot) => (
             <SlotCard key={slot.id}>
@@ -506,6 +875,128 @@ function AdminApp() {
             </SlotCard>
           ))}
         </SlotGrid>
+        <ManagementSection>
+          <h2>Danh sách nhạc nền</h2>
+          <p>
+            Tải MP3 lên Vercel Blob, bật những bài muốn khách nghe và lưu playlist.
+            File được tải công khai; chỉ tải nhạc bạn có quyền sử dụng. Tắt bài
+            khỏi playlist sẽ ngăn website chọn bài đó để phát.
+          </p>
+          <MusicPanel>
+            <form className="upload-form" onSubmit={uploadMusic}>
+              <label>
+                Tên bài hát
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={musicTitle}
+                  onChange={(event) => setMusicTitle(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                File MP3 (tối đa 30 MB)
+                <input
+                  type="file"
+                  accept=".mp3,audio/mpeg"
+                  data-role="music"
+                  onChange={(event) =>
+                    setMusicFile(event.currentTarget.files?.[0] ?? null)
+                  }
+                  required
+                />
+              </label>
+              <ActionButton type="submit" disabled={busyMusic}>
+                <Music2 size={16} />
+                {busyMusic ? "ĐANG XỬ LÝ..." : "TẢI MP3 LÊN"}
+              </ActionButton>
+            </form>
+            {musicTracks.length ? (
+              <div className="track-list">
+                {musicTracks.map((track, index) => (
+                  <div className="track" key={track.pathname}>
+                    <label>
+                      <span className="sr-only">Tên bài</span>
+                      <input
+                        type="text"
+                        maxLength={100}
+                        value={track.title}
+                        disabled={busyMusic}
+                        onChange={(event) =>
+                          setMusicTracks((current) =>
+                            current.map((item) =>
+                              item.pathname === track.pathname
+                                ? { ...item, title: event.target.value }
+                                : item,
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="enabled">
+                      <input
+                        type="checkbox"
+                        checked={track.enabled}
+                        disabled={busyMusic}
+                        onChange={(event) => {
+                          const next = musicTracks.map((item) =>
+                            item.pathname === track.pathname
+                              ? { ...item, enabled: event.target.checked }
+                              : item,
+                          );
+                          setMusicTracks(next);
+                          void saveMusicTracks(next, musicTracks);
+                        }}
+                      />
+                      Bật
+                    </label>
+                    <div className="move-controls">
+                      <button
+                        type="button"
+                        aria-label={`Di chuyển ${track.title} lên`}
+                        title="Di chuyển lên"
+                        disabled={busyMusic || index === 0}
+                        onClick={() => moveMusicTrack(index, -1)}
+                      >
+                        <ArrowUp size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Di chuyển ${track.title} xuống`}
+                        title="Di chuyển xuống"
+                        disabled={
+                          busyMusic || index === musicTracks.length - 1
+                        }
+                        onClick={() => moveMusicTrack(index, 1)}
+                      >
+                        <ArrowDown size={16} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="delete"
+                      aria-label={`Xóa ${track.title}`}
+                      disabled={busyMusic}
+                      onClick={() => void deleteMusicTrack(track)}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                    <ActionButton
+                      type="button"
+                      disabled={busyMusic || !track.title.trim()}
+                      onClick={() => void saveMusicTracks(musicTracks)}
+                    >
+                      LƯU TÊN
+                    </ActionButton>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty">Chưa có bài nhạc. Tải file MP3 đầu tiên lên.</p>
+            )}
+          </MusicPanel>
+        </ManagementSection>
+        </>
       )}
 
       {message && <Message $error={messageIsError}>{message}</Message>}
