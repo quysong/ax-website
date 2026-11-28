@@ -146,17 +146,27 @@ npm install
 npm run dev
 ```
 
-For admin and API testing, use Vercel's local runtime:
+For admin and API testing, use the Vercel CLI local runtime:
 
 ```powershell
-npx vercel dev
+npm run dev:vercel
 ```
 
+This script runs `npx --yes vercel@latest dev`; the CLI is downloaded on first
+use, requiring an internet connection and Node.js 20+. The first run may
+require linking the checkout to the Vercel project with `vercel link`; pass
+`--local` (`npm run dev:vercel -- --local`) to run without linking. Use
+`vercel env pull` or configure the required environment variables locally. The
+server may start without them, but Blob, RSVP, and admin API calls will report
+missing configuration.
+
 `npm run dev` alone cannot exercise `/api/*`; `/admin.html` may be served as
-the admin entry in Vite-only mode but its API calls will not work. On Windows,
-Vercel CLI has previously hit `EPERM` creating a symlink in its cache. Enabling
-Developer Mode or running the terminal elevated can resolve that environment
-issue.
+the admin entry in Vite-only mode but its API calls will not work. The
+previously observed Windows `EPERM` while creating a symlink in the Vercel CLI
+cache is an OS/cache permission issue, not a missing library. Enabling Windows
+Developer Mode or running the terminal elevated may help. macOS does not have
+that same Windows symlink restriction, but can still encounter Node version,
+filesystem permission, network, or Vercel project-link/environment issues.
 
 Validate changes with:
 

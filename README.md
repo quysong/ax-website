@@ -113,12 +113,14 @@ Configure these variables in Vercel **Production** (and Preview/Development if n
 For local admin/API testing, use the Vercel CLI so the `/api/admin` function is available:
 
 ```bash
-npx vercel dev
+npm run dev:vercel
 ```
+
+This script runs `npx --yes vercel@latest dev`; the CLI is downloaded on first use, so an internet connection and Node.js 20+ are required. The first run may ask you to link this checkout to a Vercel project; use `vercel link` if needed. To run without linking, use `npm run dev:vercel -- --local`. Pull local environment variables with `vercel env pull` or configure the required variables locally. Without them, the site can start but APIs that depend on Blob, RSVP, or the admin password will return configuration errors.
 
 `npm run dev` and `npm run preview` run the Vite website only; they do not emulate Vercel Functions. The admin HTML is a separate Vite entry and is served at `/admin.html` in those modes.
 
-On Windows, if `vercel dev` fails with `EPERM` while creating a symlink under the Vercel CLI cache, enable **Developer Mode** in **Settings → System → For developers**, then retry. Running the terminal as Administrator is an alternative.
+The Windows `EPERM` symlink error previously observed is an OS/cache permission issue, not a missing project library. On Windows, enabling **Developer Mode** in **Settings → System → For developers** or running the terminal elevated may help. That specific symlink restriction is Windows-related; macOS should not encounter the same Windows permission issue, although Node version, filesystem permissions, network, or Vercel project-link/environment problems can still prevent startup.
 
 Implementation references:
 - [Vercel Blob client uploads](https://vercel.com/docs/vercel-blob/client-upload)
